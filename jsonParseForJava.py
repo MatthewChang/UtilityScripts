@@ -34,19 +34,33 @@ while True:
             pass
 
 A = json.loads(string_in)
-#print A
+print A
 #print len(A)
 print "\n\n\n"
-for name,val in A.iteritems():
-      #print type(val)
-      t2 = "Object"
-      t = ""
-      if(isinstance(val,int)):
-            t = "Int"
-            t2 = 'int'
-      if(isinstance(val,basestring)):
-            t = "String"
-            t2 = "String"
-      assignString = ' = {0}.get{1}("{2}");'.format(args.n,t,name) if args.assign else ";"
-      lead = "{0} ".format(t2) if args.define else ""
-      print "{0}{1}{2}".format(lead,j(name),assignString);
+
+def parse(obj,object_name,assign,define,depth = 0):
+    output= ""
+    for name,val in obj.iteritems():
+        jname = j(name)
+        if(isinstance(val,list) and len(val) > 0):
+            output += 'JSONArray {0} = {1}.getJSONArray("{2}");\n'.format(jname,object_name,name)
+            output += "for(int i = 0; i < {0}.length(); i++) {{\n".format(jname);
+            nested_name = "obj{0}".format(depth);
+            output += 'JSONObject {0} = {1}.getJSONObject(i);\n'.format(nested_name,jname);
+            output += parse(val[0],nested_name,True,True,depth+1)
+            output += "}\n"
+        else:
+          t2 = "Object"
+          t = ""
+          if(isinstance(val,int)):
+                t = "Int"
+                t2 = 'int'
+          if(isinstance(val,basestring)):
+                t = "String"
+                t2 = "String"
+          assignString = ' = {0}.get{1}("{2}");'.format(object_name,t,name) if assign else ";"
+          lead = "{0} ".format(t2) if define else ""
+          output+= "{0}{1}{2}\n".format(lead,j(name),assignString);
+    return output
+          
+print parse(A,args.n,args.assign,args.define)
