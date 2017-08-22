@@ -13,6 +13,9 @@ parser.add_argument('-d', dest='define', action='store_const',
 parser.add_argument('-a', dest='assign', action='store_const',
      const=True, default=False,
      help='Add type assignment from variable')
+parser.add_argument('-r', dest='recursive', action='store_const',
+     const=True, default=False,
+     help='Recurse into nested objects')
 parser.add_argument('-n', type=str,
      help='name of variable',default="response");
 
@@ -49,6 +52,9 @@ def parse(obj,object_name,assign,define,depth = 0):
             output += 'JSONObject {0} = {1}.getJSONObject(i);\n'.format(nested_name,jname);
             output += parse(val[0],nested_name,True,True,depth+1)
             output += "}\n"
+        elif(isinstance(val,dict) and args.recursive):
+            output += 'JSONObject {0} = {1}.getObject("{2}");\n'.format(jname,object_name,name)
+            output += parse(val,jname,True,True,depth+1)
         else:
           t2 = "Object"
           t = ""

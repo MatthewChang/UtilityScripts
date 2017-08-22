@@ -1,0 +1,28 @@
+#!/usr/bin/env ruby
+
+`git fetch -p origin`
+remote_branches = `git branch -r`
+branches = `git branch`
+branch_names_regex = /\*?\s+(.*?)$/
+local_branch_names = branches.split("\n").map { |e| e.match(branch_names_regex)[1] }
+remote_branch_names = remote_branches.split("\n").map { |e| e.match(branch_names_regex)[1] }
+my_remote_branches = remote_branch_names.select { |e| e.match(/^origin\/mchang/) }
+remote_branches_to_remove = my_remote_branches.reject do |e|
+  local_branch_names.any? { |loc| e.match(/^origin\/#{loc}$/) }
+end
+if remote_branches_to_remove.empty?
+  puts 'No branches to remove'
+  exit
+end
+puts remote_branches_to_remove
+input = nil
+while input != 'y' && input != 'n'
+  print 'Delete these branches (y/n)?: '
+  input = gets.chomp
+end
+exit if input == 'n'
+
+refs = remote_branches_to_remove.map {|e| e.match(/^origin\/(.+)$/)[1] }
+refs.each do |e|
+  `git push --delete origin #{e}`
+end
