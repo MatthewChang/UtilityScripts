@@ -1,0 +1,117 @@
+#! python
+from http.server import BaseHTTPRequestHandler, HTTPServer, SimpleHTTPRequestHandler
+import time
+import os
+import re
+import argparse
+
+parser = argparse.ArgumentParser(description='image viewing server')
+parser.add_argument('-p',
+                    '--port',
+                    dest='port',
+                    default='9000',
+                    type=int,
+                    help='which port to run on ')
+args = parser.parse_args()
+
+
+hostName = "0.0.0.0"
+hostPort = args.port
+image_extensions = ['png','jpg','jpeg','gif']
+
+# import re
+# path = re.match('^\.*/*(.*)?$','./test.png')[1]
+# path
+script = """ let selected = null; 
+function select(ind){
+    if (ind < 0) {
+        ind = 0
+    }
+    if (ind >= paths.length) {
+        ind = paths.length - 1
+    }
+    $("#item"+selected).css('background','white')
+    $("#item"+ind).css('background','red')
+    selected=ind
+    $("#display").attr('src',paths[ind])
+    // window.location.hash=ind
+    history.replaceState(undefined, undefined,"#"+ind)
+    let pageTop = $(window).scrollTop();
+    let pageBottom = pageTop + window.innerHeight;
+    let elementTop = $("#item"+ind).offset().top;
+    let elementBottom = elementTop + $("#item"+ind).height();
+    if (elementTop < pageTop) {
+       $(window).scrollTop(elementTop)
+    } else if (elementBottom > pageBottom) {
+       $(window).scrollTop(elementBottom-window.innerHeight)
+    }
+}
+$(document).ready(function(){
+    select(parseInt(window.location.hash.substr(1)))
+})
+document.onkeydown = function(e) {
+    switch(e.which) {
+        case 37: // left
+        break;
+
+        case 38: // up
+        select(selected-1)
+        break;
+
+        case 39: // right
+        break;
+
+        case 40: // down
+        select(selected+1)
+        break;
+        default: return; // exit this handler for other keys
+    }
+    e.preventDefault(); // prevent the default action (scroll / move caret)
+};
+"""
+
+class MyServer(SimpleHTTPRequestHandler):
+    def do_GET(self):
+        path = re.match('^\.*/*(.*)?$',self.path)[1]
+        print('path: ',path)
+        if os.path.isdir('./'+path):
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            self.wfile.write(bytes(f"<html><head><script src=\"https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js\"></script><script src=\"https://gitcdn.link/repo/litera/jquery-scrollintoview/master/jquery.scrollintoview.min.js\"></script><script>{script}</script><title>{path}</title></head>", "utf-8"))
+
+            files = sorted(os.listdir('./'+path))
+            if len(path) == 0:
+                root_path = ''
+            else:
+                root_path = f'/{path}'
+            self.wfile.write(bytes('<body style="display: flex"><div id="list">','utf-8'))
+            for i,fil in enumerate(files):
+                onclick =f"onclick=\"select({i})\""
+                self.wfile.write(bytes(f'<p class="item" {onclick} style="background: white; margin: 0 0 0 0; padding: 5 25 5 10" id="item{i}"><a href="{root_path}/{fil}">{fil}</a></p>', "utf-8"))
+            self.wfile.write(bytes('</div>','utf-8'))
+            self.wfile.write(bytes(f'<div><img id="display" style="position: fixed" src=""/></div>','utf-8'))
+            paths = ','.join([f'"{root_path}/{fil}"' for fil in files])
+            end_script = f"let paths = [{paths}]"
+            self.wfile.write(bytes(f"<script>{end_script}</script></body></html>", "utf-8"))
+        else:
+            SimpleHTTPRequestHandler.do_GET(self)
+
+tries = 0
+for _ in range(100):
+    try:
+        myServer = HTTPServer((hostName, hostPort), MyServer)
+        break
+    except OSError as e:
+        if e.errno == 98:
+            hostPort += 1
+
+print(time.asctime(), "Server Starts - %s:%s" % (hostName, hostPort))
+
+try:
+    myServer.serve_forever()
+except KeyboardInterrupt:
+    pass
+
+myServer.server_close()
+print(time.asctime(), "Server Stops - %s:%s" % (hostName, hostPort))
