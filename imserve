@@ -86,6 +86,7 @@ class MyServer(SimpleHTTPRequestHandler):
             else:
                 root_path = f'/{path}'
             self.wfile.write(bytes('<body style="display: flex"><div id="list">','utf-8'))
+            self.wfile.write(bytes(f'<h3>{os.getcwd()}/{path}</h3>','utf-8'))
             for i,fil in enumerate(files):
                 onclick =f"onclick=\"select({i})\""
                 self.wfile.write(bytes(f'<p class="item" {onclick} style="background: white; margin: 0 0 0 0; padding: 5 25 5 10" id="item{i}"><a href="{root_path}/{fil}">{fil}</a></p>', "utf-8"))
