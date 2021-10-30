@@ -1,4 +1,4 @@
-#! python -m flask
+#! python
 from flask import Flask, send_from_directory, copy_current_request_context
 import os
 from watchdog.observers import Observer 
@@ -39,10 +39,10 @@ function select(ind){
     if (evtSource) {
         evtSource.close()
     }
-    evtSource = new EventSource("listen"+paths[ind]);
-    evtSource.onmessage = function(event) {
-      console.log(event.data)
-    }
+    // evtSource = new EventSource("listen"+paths[ind]);
+    // evtSource.onmessage = function(event) {
+      // console.log(event.data)
+    // }
 
 
 }
@@ -112,7 +112,7 @@ def listen():
         dirPath = os.path.dirname(path)
         basePath = os.path.basename(path)
         wd = inotify.add_watch('.'+dirPath, flags.MODIFY)
-        print(wd)
+        # print(wd)
         try:
             while True:
                 for event in inotify.read():
@@ -147,13 +147,16 @@ def hello_world():
             root_path = ''
         else:
             root_path = f'{path}'
-        res += '<body style="display: flex"><div id="list">'
+        res += '<body>'
         res += f'<h3>{os.getcwd()}/{path}</h3>'
+        res += f'<div style="display: flex">'
+        res += '<div id="list">'
         for i,fil in enumerate(files):
             onclick =f"onclick=\"select({i})\""
             res += f'<p class="item" {onclick} style="background: white; margin: 0 0 0 0; padding: 5 25 5 10" id="item{i}"><a href="/?path={root_path}/{fil}">{fil}</a></p>'
         res += '</div>'
         res += f'<div><img id="display" style="position: fixed" src=""/></div>'
+        res += '</div>'
         paths = ','.join([f'"?path={root_path}/{fil}"' for fil in files])
         end_script = f"let paths = [{paths}]"
         res += f"<script>{end_script}</script></body></html>"
@@ -162,6 +165,15 @@ def hello_world():
         print(os.path.dirname(path),os.path.basename(path))
         return send_from_directory(os.getcwd()+os.path.dirname(path),os.path.basename(path))
 
+if __name__ == '__main__':
+    port = 5000
+    for _ in range(100):
+        try:
+            app.run(host='0.0.0.0', port=port)
+            break
+        except OSError as e:
+            if e.errno == 98:
+                port += 1
 
 import threading
 
