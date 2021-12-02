@@ -42,5 +42,5 @@ function conda_auto_env() {
   #echo "No conda env specified"
 }
 #conda_auto_env
-export PROMPT_COMMAND=conda_auto_env
+#export PROMPT_COMMAND=conda_auto_env
 

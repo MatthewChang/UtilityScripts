@@ -5,6 +5,7 @@ from watchdog.observers import Observer
 from watchdog.observers.polling import PollingObserver
 from watchdog.events import FileSystemEventHandler
 from queue import Queue
+import time
 from inotify_simple import INotify, flags
 watch_flags = flags.CREATE | flags.DELETE | flags.MODIFY | flags.DELETE_SELF
 
@@ -129,10 +130,12 @@ def listen():
             del inotify
     return Response(stream(), mimetype='text/event-stream')
 
-@app.route("/")
-def hello_world():
-    path = request.args.get('path')
-    print('path: ',path)
+@app.route('/')
+@app.route("/<path:subpath>")
+def hello_world(subpath=''):
+    path = subpath
+    print('path: ',path,os.path.isdir('./'+path))
+    ts = time.time()
     if path is None or os.path.isdir('./'+path):
         if path is None:
             path = ""
@@ -146,24 +149,25 @@ def hello_world():
         if len(path) == 0:
             root_path = ''
         else:
-            root_path = f'{path}'
+            root_path = f'/{path}'
         res += '<body>'
         res += f'<h3>{os.getcwd()}/{path}</h3>'
         res += f'<div style="display: flex">'
         res += '<div id="list">'
         for i,fil in enumerate(files):
+            print(root_path,fil)
             onclick =f"onclick=\"select({i})\""
-            res += f'<p class="item" {onclick} style="background: white; margin: 0 0 0 0; padding: 5 25 5 10" id="item{i}"><a href="/?path={root_path}/{fil}">{fil}</a></p>'
+            res += f'<p class="item" {onclick} style="background: white; margin: 0 0 0 0; padding: 5 25 5 10" id="item{i}"><a href="{root_path}/{fil}">{fil}</a></p>'
         res += '</div>'
         res += f'<div><img id="display" style="position: fixed" src=""/></div>'
         res += '</div>'
-        paths = ','.join([f'"?path={root_path}/{fil}"' for fil in files])
+        paths = ','.join([f'"{root_path}/{fil}?ts={ts}"' for fil in files])
         end_script = f"let paths = [{paths}]"
         res += f"<script>{end_script}</script></body></html>"
         return res
     else:
         print(os.path.dirname(path),os.path.basename(path))
-        return send_from_directory(os.getcwd()+os.path.dirname(path),os.path.basename(path))
+        return send_from_directory(os.getcwd()+'/'+os.path.dirname(path),os.path.basename(path))
 
 if __name__ == '__main__':
     port = 5000
