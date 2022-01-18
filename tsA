@@ -1,0 +1,11 @@
+#! /bin/bash
+# repeat commands to the various task spooler queues (these socket files are
+# based on the aliases in  my .zshrc)
+TS_SOCKET=/tmp/ts-gpu0 ts $@
+TS_SOCKET=/tmp/ts-gpu1 ts $@
+TS_SOCKET=/tmp/ts-gpu2 ts $@
+TS_SOCKET=/tmp/ts-gpu3 ts $@
+TS_SOCKET=/tmp/ts-gpu4 ts $@
+TS_SOCKET=/tmp/ts-gpu5 ts $@
+TS_SOCKET=/tmp/ts-gpu6 ts $@
+
