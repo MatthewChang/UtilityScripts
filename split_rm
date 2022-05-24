@@ -1,0 +1,19 @@
+if [ $# -eq 0 ]
+  then
+    echo "Folder required"
+    exit
+fi
+while true; do
+    read -p "Do you wish remove all files in $1 ?" yn
+    case $yn in
+        [Yy]* ) break;;
+        [Nn]* ) exit;;
+        * ) echo "Please answer yes or no.";;
+    esac
+done
+for folder in $(ls $1)
+do
+  echo removing $1/$folder
+  rm -rf $1/$folder
+done
+rm -r $1

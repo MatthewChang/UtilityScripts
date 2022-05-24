@@ -23,7 +23,14 @@ function select(ind){
     $("#item"+selected).css('background','white')
     $("#item"+ind).css('background','red')
     selected=ind
-    $("#display").attr('src',paths[ind])
+    // $("#display").attr('src',paths[ind])
+    // detect mp4
+    if (paths[ind].match('\.mp4')) {
+        $("#display").html('<video width=500 controls><source id="display_el" src="" type="video/mp4"></video>')
+    } else {
+        $("#display").html('<img id="display_el" src=""/>')
+    }
+    $("#display_el").attr('src',paths[ind])
     
     // window.location.hash=ind
     history.replaceState(undefined, undefined,"#"+ind)
@@ -159,7 +166,8 @@ def hello_world(subpath=''):
             onclick =f"onclick=\"select({i})\""
             res += f'<p class="item" {onclick} style="background: white; margin: 0 0 0 0; padding: 5 25 5 10" id="item{i}"><a href="{root_path}/{fil}">{fil}</a></p>'
         res += '</div>'
-        res += f'<div><img id="display" style="position: fixed" src=""/></div>'
+        # res += f'<div><img id="display" style="position: fixed" src=""/></div>'
+        res += f'<div><div id="display" style="position: fixed"/></div>'
         res += '</div>'
         paths = ','.join([f'"{root_path}/{fil}?ts={ts}"' for fil in files])
         end_script = f"let paths = [{paths}]"
