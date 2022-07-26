@@ -26,9 +26,9 @@ function select(ind){
     // $("#display").attr('src',paths[ind])
     // detect mp4
     if (paths[ind].match('\.mp4')) {
-        $("#display").html('<video width=500 controls><source id="display_el" src="" type="video/mp4"></video>')
+        $("#display_inner").html('<video width="100%" controls><source id="display_el" src="" type="video/mp4"></video>')
     } else {
-        $("#display").html('<img id="display_el" src=""/>')
+        $("#display_inner").html('<img id="display_el" src=""/>')
     }
     $("#display_el").attr('src',paths[ind])
     
@@ -56,6 +56,7 @@ function select(ind){
 }
 $(document).ready(function(){
     select(parseInt(window.location.hash.substr(1)))
+    $( "#display" ).resizable();
 })
 document.onkeydown = function(e) {
     switch(e.which) {
@@ -150,8 +151,14 @@ def hello_world(subpath=''):
         # self.send_response(200)
         # self.send_header("Content-type", "text/html")
         # self.end_headers()
-        res = f"<html><head><script src=\"https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js\"></script><script src=\"https://gitcdn.link/repo/litera/jquery-scrollintoview/master/jquery.scrollintoview.min.js\"></script><script>{script}</script><title>{path}</title></head>"
-
+        res = f'''<html>
+        <head>
+        <link rel="stylesheet" href="//code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+        <script src=\"https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js\"></script>
+        <script src=\"https://gitcdn.link/repo/litera/jquery-scrollintoview/master/jquery.scrollintoview.min.js\"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
+        <script>{script}</script><title>{path}</title></head>
+        '''
         files = sorted(os.listdir('./'+path))
         if len(path) == 0:
             root_path = ''
@@ -167,7 +174,7 @@ def hello_world(subpath=''):
             res += f'<p class="item" {onclick} style="background: white; margin: 0 0 0 0; padding: 5 25 5 10" id="item{i}"><a href="{root_path}/{fil}">{fil}</a></p>'
         res += '</div>'
         # res += f'<div><img id="display" style="position: fixed" src=""/></div>'
-        res += f'<div><div id="display" style="position: fixed"/></div>'
+        res += f'<div><div id="display" style="position: fixed,padding: 0.5em"/><div id="display_inner"></div></div>'
         res += '</div>'
         paths = ','.join([f'"{root_path}/{fil}?ts={ts}"' for fil in files])
         end_script = f"let paths = [{paths}]"
