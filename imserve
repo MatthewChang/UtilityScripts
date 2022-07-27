@@ -1,6 +1,6 @@
 #! python
-from flask import Flask, send_from_directory, copy_current_request_context
 import os
+from flask import Flask, send_from_directory, copy_current_request_context
 from watchdog.observers import Observer 
 from watchdog.observers.polling import PollingObserver
 from watchdog.events import FileSystemEventHandler
@@ -28,12 +28,15 @@ function select(ind){
     if (paths[ind].match('\.mp4')) {
         $("#display_inner").html('<video width="100%" controls><source id="display_el" src="" type="video/mp4"></video>')
     } else {
-        $("#display_inner").html('<img id="display_el" src=""/>')
+        $("#display_inner").html('<img width="100%" id="display_el" src=""/>')
     }
     $("#display_el").attr('src',paths[ind])
     
     // window.location.hash=ind
-    history.replaceState(undefined, undefined,"#"+ind)
+    let url = window.location
+    url.hash = '#'+ind
+    console.log(url.href)
+    history.replaceState(undefined, undefined,url.href)
     let pageTop = $(window).scrollTop();
     let pageBottom = pageTop + window.innerHeight;
     let elementTop = $("#item"+ind).offset().top;
@@ -56,7 +59,19 @@ function select(ind){
 }
 $(document).ready(function(){
     select(parseInt(window.location.hash.substr(1)))
-    $( "#display" ).resizable();
+    window
+    let url = new URL(document.location.href)
+    let width = url.searchParams.get('w')
+    if (width) {
+        $("#display").width(width)
+    }
+    $( "#display" ).resizable({
+        resize: function( event, ui ) {
+        let url = new URL(document.location.href)
+        url.searchParams.set("w",ui.size.width)
+        history.replaceState({ additionalInformation: 'Updated the URL with JS' }, "imserve", url);
+        }
+    });
 })
 document.onkeydown = function(e) {
     switch(e.which) {
