@@ -6,6 +6,7 @@ from watchdog.observers.polling import PollingObserver
 from watchdog.events import FileSystemEventHandler
 from queue import Queue
 import time
+from pathlib import Path
 from inotify_simple import INotify, flags
 watch_flags = flags.CREATE | flags.DELETE | flags.MODIFY | flags.DELETE_SELF
 
@@ -33,7 +34,7 @@ function select(ind){
     $("#display_el").attr('src',paths[ind])
     
     // window.location.hash=ind
-    let url = window.location
+    let url = new URL(window.location)
     url.hash = '#'+ind
     console.log(url.href)
     history.replaceState(undefined, undefined,url.href)
@@ -180,7 +181,17 @@ def hello_world(subpath=''):
         else:
             root_path = f'/{path}'
         res += '<body>'
-        res += f'<h3>{os.getcwd()}/{path}</h3>'
+
+        # header
+        mount_path = os.getcwd()
+        parts = Path(path).parts
+        header_links = f"{mount_path}/"
+        for i in range(len(parts)): 
+            sub_path = os.path.join(*parts[:i+1])
+            name = parts[i]
+            header_links +=f'<a href="/{sub_path}">{name}/</a>'
+        res += f'<h3>{header_links}</h3>'
+
         res += f'<div style="display: flex">'
         res += '<div id="list">'
         for i,fil in enumerate(files):
