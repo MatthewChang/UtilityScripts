@@ -7,6 +7,7 @@ from watchdog.events import FileSystemEventHandler
 from queue import Queue
 import time
 from pathlib import Path
+import subprocess
 from inotify_simple import INotify, flags
 watch_flags = flags.CREATE | flags.DELETE | flags.MODIFY | flags.DELETE_SELF
 
@@ -175,7 +176,15 @@ def hello_world(subpath=''):
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
         <script>{script}</script><title>{path}</title></head>
         '''
-        files = sorted(os.listdir('./'+path))
+        # files = sorted(os.listdir('./'+path))
+
+        # find files where all users have read permissions
+        cmd = 'find ./{} -maxdepth 1 -perm -444 -printf "%P\\n"'.format(path).split()
+        result = subprocess.run(cmd, stdout=subprocess.PIPE).stdout.decode('utf-8')
+        files = [x[2:] for x in result.split('\n')]
+        # remove hidden and blank files
+        files = [x for x in files if len(x)>0 and x[0] != '.']
+
         if len(path) == 0:
             root_path = ''
         else:
@@ -185,7 +194,7 @@ def hello_world(subpath=''):
         # header
         mount_path = os.getcwd()
         parts = Path(path).parts
-        header_links = f"{mount_path}/"
+        header_links = f'<a href="/">{mount_path}/</a>'
         for i in range(len(parts)): 
             sub_path = os.path.join(*parts[:i+1])
             name = parts[i]
@@ -193,7 +202,7 @@ def hello_world(subpath=''):
         res += f'<h3>{header_links}</h3>'
 
         res += f'<div style="display: flex">'
-        res += '<div id="list">'
+        res += '<div id="list" style="overflow-y: scroll; height: 800px">'
         for i,fil in enumerate(files):
             print(root_path,fil)
             onclick =f"onclick=\"select({i})\""
