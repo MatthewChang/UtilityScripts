@@ -168,13 +168,25 @@ def hello_world(subpath=''):
         # self.send_response(200)
         # self.send_header("Content-type", "text/html")
         # self.end_headers()
+        style = '''
+                body {margin: 0}
+                #page { display: flex; flex-direction: column; height: 100vh}
+                #main { display: flex; overflow-y: auto;}
+                #list {display: flex; overflow-y: scroll; flex-shrink: 0; flex-direction: column}
+                h3 { flex-grow: 0;}
+        '''
         res = f'''<html>
         <head>
         <link rel="stylesheet" href="//code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
         <script src=\"https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js\"></script>
         <script src=\"https://gitcdn.link/repo/litera/jquery-scrollintoview/master/jquery.scrollintoview.min.js\"></script>
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
-        <script>{script}</script><title>{path}</title></head>
+        <script>{script}</script><title>{path}</title>
+        <style>
+        {style}
+        </style>
+
+        </head>
         '''
         # files = sorted(os.listdir('./'+path))
 
@@ -190,7 +202,7 @@ def hello_world(subpath=''):
             root_path = ''
         else:
             root_path = f'/{path}'
-        res += '<body>'
+        res += '<body><div id="page">'
 
         # header
         mount_path = os.getcwd()
@@ -202,8 +214,8 @@ def hello_world(subpath=''):
             header_links +=f'<a href="/{sub_path}">{name}/</a>'
         res += f'<h3>{header_links}</h3>'
 
-        res += f'<div style="display: flex">'
-        res += '<div id="list" style="overflow-y: scroll; height: 800px">'
+        res += f'<div id="main">'
+        res += '<div id="list">'
         for i,fil in enumerate(files):
             print(root_path,fil)
             onclick =f"onclick=\"select({i})\""
@@ -214,7 +226,7 @@ def hello_world(subpath=''):
         res += '</div>'
         paths = ','.join([f'"{root_path}/{fil}?ts={ts}"' for fil in files])
         end_script = f"let paths = [{paths}]"
-        res += f"<script>{end_script}</script></body></html>"
+        res += f"<script>{end_script}</script></div></body></html>"
         return res
     else:
         print(os.path.dirname(path),os.path.basename(path))
