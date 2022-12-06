@@ -1,6 +1,5 @@
 #! python
 import os
-from util import throttle
 from flask import Flask, send_from_directory, copy_current_request_context
 # from watchdog.observers import Observer 
 # from watchdog.observers.polling import PollingObserver
