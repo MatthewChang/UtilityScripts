@@ -1,5 +1,6 @@
 #! python
 import os
+from util import throttle
 from flask import Flask, send_from_directory, copy_current_request_context
 # from watchdog.observers import Observer 
 # from watchdog.observers.polling import PollingObserver
@@ -125,16 +126,20 @@ def listen(path):
         basePath = os.path.basename(path)
         print(dirPath)
         wd = inotify.add_watch('./'+dirPath, flags.MODIFY)
-        print(wd)
         try:
             while True:
-                for event in inotify.read():
-                    print(event)
+                # add read delay because things like writing pngs will do
+                # 20 quick writes in succession and we want to trigger after
+                # they're all done. If you don't do this you'll read only
+                # the top few lines of the image, or full the server with 20 requests
+                for event in inotify.read(read_delay=500):
                     for flag in flags.from_mask(event.mask):
-                        print('    ' + str(flag))
                         if event.name == basePath:
+                            print(f"Updating {basePath}")
+                            print(event)
+                            # print(wd)
                             yield ('data: {"abc": %s}\n\n' % (event.name))
-        except GeneratorExit:
+        finally:
             print('closed:', path)
             inotify.rm_watch(wd)
             del inotify
