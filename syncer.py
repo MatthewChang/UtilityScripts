@@ -29,13 +29,16 @@ class FileChangeHandler(FileSystemEventHandler):
         self.ignore_patterns = ignore_patterns or []
 
     def should_ignore(self, file_path):
+        print(self.ignore_patterns)
         for pattern in self.ignore_patterns:
+            # deosn't really work properly right now
             if fnmatch.fnmatch(file_path, pattern):
                 return True
         return False
 
     def on_modified(self, event):
-        if not event.is_directory and not self.should_ignore(event.src_path):
+        rel_path = os.path.relpath(event.src_path)
+        if not event.is_directory and not self.should_ignore(rel_path):
             print(event)
             print(event.src_path)
             self.callback()
@@ -51,7 +54,7 @@ def file_change_callback():
     print("Waiting for changes...")
 
 def load_ignore_patterns():
-    ignore_patterns = []
+    ignore_patterns = ['.git/**/*','.git/*']
     gitignore_file = os.path.join(os.getcwd(), '.gitignore')
     if os.path.isfile(gitignore_file):
         with open(gitignore_file, 'r') as f:
@@ -64,7 +67,7 @@ def load_ignore_patterns():
 def monitor_directory_changes(directory, ignore_patterns=None):
     event_handler = FileChangeHandler(file_change_callback, ignore_patterns)
     observer = Observer()
-    observer.schedule(event_handler, directory, recursive=False)
+    observer.schedule(event_handler, directory, recursive=True)
     observer.start()
 
     try:
@@ -86,7 +89,7 @@ def sync_all_files(ignore_patterns=None):
     subprocess.call(["rsync", "-avz", f"{remote_server}:{remote_folder}/.gitignore", "."])
 
     # Perform the sync, excluding files based on the pulled .gitignore
-    subprocess.call(["rsync", "-avzu", "--exclude-from", ".gitignore", f"{remote_server}:{remote_folder}", "."])
+    subprocess.call(["rsync", "-avzu", "--exclude-from", ".gitignore", f"{remote_server}:{remote_folder}/", "."])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Watch for file changes and perform sync")
