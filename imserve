@@ -1,11 +1,13 @@
 #! python
-from flask import Flask, send_from_directory, copy_current_request_context
 import os
-from watchdog.observers import Observer 
-from watchdog.observers.polling import PollingObserver
-from watchdog.events import FileSystemEventHandler
+from flask import Flask, send_from_directory, copy_current_request_context
+# from watchdog.observers import Observer 
+# from watchdog.observers.polling import PollingObserver
+# from watchdog.events import FileSystemEventHandler
 from queue import Queue
 import time
+from pathlib import Path
+import subprocess
 from inotify_simple import INotify, flags
 watch_flags = flags.CREATE | flags.DELETE | flags.MODIFY | flags.DELETE_SELF
 
@@ -13,7 +15,7 @@ watch_flags = flags.CREATE | flags.DELETE | flags.MODIFY | flags.DELETE_SELF
 app = Flask(__name__)
 script = """ let selected = null; 
 let evtSource;
-function select(ind){
+function select(ind,register=true){
     if (ind < 0) {
         ind = 0
     }
@@ -26,14 +28,19 @@ function select(ind){
     // $("#display").attr('src',paths[ind])
     // detect mp4
     if (paths[ind].match('\.mp4')) {
-        $("#display").html('<video width=500 controls><source id="display_el" src="" type="video/mp4"></video>')
+        $("#display_inner").html('<video width="100%" controls><source id="display_el" src="" type="video/mp4"></video>')
     } else {
-        $("#display").html('<img id="display_el" src=""/>')
+        $("#display_inner").html('<img width="100%" id="display_el" src=""/>')
     }
-    $("#display_el").attr('src',paths[ind])
+    let view_url = new URL("http://"+location.host+paths[ind])
+    view_url.searchParams.set('ts',Date.now())
+    $("#display_el").attr('src',view_url.href)
     
     // window.location.hash=ind
-    history.replaceState(undefined, undefined,"#"+ind)
+    let url = new URL(window.location)
+    url.hash = '#'+ind
+    console.log(url.href)
+    history.replaceState(undefined, undefined,url.href)
     let pageTop = $(window).scrollTop();
     let pageBottom = pageTop + window.innerHeight;
     let elementTop = $("#item"+ind).offset().top;
@@ -44,18 +51,36 @@ function select(ind){
        $(window).scrollTop(elementBottom-window.innerHeight)
     }
 
-    if (evtSource) {
-        evtSource.close()
+    if (register) {
+        if (evtSource) {
+            evtSource.close()
+        }
+        let event_url = new URL("http://"+location.host+paths[ind])
+        event_url.searchParams.append('listen', 1);
+        evtSource = new EventSource(event_url.href);
+        evtSource.onmessage = function(event) { 
+            select(ind,false)
+        }
     }
-    // evtSource = new EventSource("listen"+paths[ind]);
-    // evtSource.onmessage = function(event) {
-      // console.log(event.data)
-    // }
-
-
 }
 $(document).ready(function(){
-    select(parseInt(window.location.hash.substr(1)))
+    let hash = window.location.hash.substr(1)
+    if (hash.length > 0) {
+        select(parseInt(window.location.hash.substr(1)))
+    }
+    window
+    let url = new URL(document.location.href)
+    let width = url.searchParams.get('w')
+    if (width) {
+        $("#display").width(width)
+    }
+    $( "#display" ).resizable({
+        resize: function( event, ui ) {
+        let url = new URL(document.location.href)
+        url.searchParams.set("w",ui.size.width)
+        history.replaceState({ additionalInformation: 'Updated the URL with JS' }, "imserve", url);
+        }
+    });
 })
 document.onkeydown = function(e) {
     switch(e.which) {
@@ -81,57 +106,39 @@ document.onkeydown = function(e) {
 image_extensions = ['png','jpg','jpeg','gif']
 from flask import request, Response
 import time
-import pyinotify
+# import pyinotify
 
-wm = pyinotify.WatchManager()  # Watch Manager
-class EventHandler(pyinotify.ProcessEvent):
-    def __init__(self):
-        super(EventHandler, self).__init__()
-        self.queue = Queue()
-    def process_IN_MODIFY(self, event):
-        print("MODIFY:", event.pathname)
-        self.queue.put(event.pathname)
-
-# class EventHandler(FileSystemEventHandler):
+# wm = pyinotify.WatchManager()  # Watch Manager
+# class EventHandler(pyinotify.ProcessEvent):
     # def __init__(self):
         # super(EventHandler, self).__init__()
         # self.queue = Queue()
-    # def on_modified(self, event):
-        # super(EventHandler, self).on_modified(event)
-        # print(event)
-        # print("Modified %s", event.src_path)
-        # self.queue.put(event.src_path,block=False)
+    # def process_IN_MODIFY(self, event):
+        # print("MODIFY:", event.pathname)
+        # self.queue.put(event.pathname)
 
-@app.route("/listen")
-def listen():
-    path = request.args.get('path')
-
-    # dirPath = os.path.dirname(path)
-    # observer = PollingObserver()
-    # # observer = Observer()
-    # handler = EventHandler()
-    # # observer.schedule(handler, '.'+request.args.get('path'))
-    # print(dirPath)
-    # observer.schedule(handler, '.'+dirPath)
-    # observer.start()
+def listen(path):
     def stream():
         inotify = INotify()
-        handler = EventHandler()
+        # handler = EventHandler()
         dirPath = os.path.dirname(path)
         basePath = os.path.basename(path)
-        wd = inotify.add_watch('.'+dirPath, flags.MODIFY)
-        # print(wd)
+        print(dirPath)
+        wd = inotify.add_watch('./'+dirPath, flags.MODIFY)
         try:
             while True:
-                for event in inotify.read():
-                    print(event)
+                # add read delay because things like writing pngs will do
+                # 20 quick writes in succession and we want to trigger after
+                # they're all done. If you don't do this you'll read only
+                # the top few lines of the image, or full the server with 20 requests
+                for event in inotify.read(read_delay=500):
                     for flag in flags.from_mask(event.mask):
-                        print('    ' + str(flag))
                         if event.name == basePath:
+                            print(f"Updating {basePath}")
+                            print(event)
+                            # print(wd)
                             yield ('data: {"abc": %s}\n\n' % (event.name))
-                # time.sleep(5)
-                # yield ('data: {"abc": test}\n\n' )
-        except GeneratorExit:
+        finally:
             print('closed:', path)
             inotify.rm_watch(wd)
             del inotify
@@ -141,6 +148,9 @@ def listen():
 @app.route("/<path:subpath>")
 def hello_world(subpath=''):
     path = subpath
+    if 'listen' in request.args:
+        print('Listening on ',path)
+        return listen(path)
     print('path: ',path,os.path.isdir('./'+path))
     ts = time.time()
     if path is None or os.path.isdir('./'+path):
@@ -150,16 +160,53 @@ def hello_world(subpath=''):
         # self.send_response(200)
         # self.send_header("Content-type", "text/html")
         # self.end_headers()
-        res = f"<html><head><script src=\"https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js\"></script><script src=\"https://gitcdn.link/repo/litera/jquery-scrollintoview/master/jquery.scrollintoview.min.js\"></script><script>{script}</script><title>{path}</title></head>"
+        style = '''
+                body {margin: 0}
+                #page { display: flex; flex-direction: column; height: 100vh}
+                #main { display: flex; overflow-y: auto;}
+                #list {display: flex; overflow-y: scroll; flex-shrink: 0; flex-direction: column}
+                h3 { flex-grow: 0;}
+        '''
+        res = f'''<html>
+        <head>
+        <link rel="stylesheet" href="//code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+        <script src=\"https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js\"></script>
+        <script src=\"https://gitcdn.link/repo/litera/jquery-scrollintoview/master/jquery.scrollintoview.min.js\"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
+        <script>{script}</script><title>{path}</title>
+        <style>
+        {style}
+        </style>
 
-        files = sorted(os.listdir('./'+path))
+        </head>
+        '''
+        # files = sorted(os.listdir('./'+path))
+
+        # find files where all users have read permissions
+        cmd = 'find ./{} -maxdepth 1 -perm -444 -printf "%P\\n"'.format(path).split()
+        result = subprocess.run(cmd, stdout=subprocess.PIPE).stdout.decode('utf-8')
+        files = [x[2:] for x in result.split('\n')]
+        # remove hidden and blank files
+        files = sorted([x for x in files if len(x)>0 and x[0] != '.'])
+        
+
         if len(path) == 0:
             root_path = ''
         else:
             root_path = f'/{path}'
-        res += '<body>'
-        res += f'<h3>{os.getcwd()}/{path}</h3>'
-        res += f'<div style="display: flex">'
+        res += '<body><div id="page">'
+
+        # header
+        mount_path = os.getcwd()
+        parts = Path(path).parts
+        header_links = f'<a href="/">{mount_path}/</a>'
+        for i in range(len(parts)): 
+            sub_path = os.path.join(*parts[:i+1])
+            name = parts[i]
+            header_links +=f'<a href="/{sub_path}">{name}/</a>'
+        res += f'<h3>{header_links}</h3>'
+
+        res += f'<div id="main">'
         res += '<div id="list">'
         for i,fil in enumerate(files):
             print(root_path,fil)
@@ -167,11 +214,11 @@ def hello_world(subpath=''):
             res += f'<p class="item" {onclick} style="background: white; margin: 0 0 0 0; padding: 5 25 5 10" id="item{i}"><a href="{root_path}/{fil}">{fil}</a></p>'
         res += '</div>'
         # res += f'<div><img id="display" style="position: fixed" src=""/></div>'
-        res += f'<div><div id="display" style="position: fixed"/></div>'
+        res += f'<div><div id="display" style="position: fixed,padding: 0.5em"/><div id="display_inner"></div></div>'
         res += '</div>'
         paths = ','.join([f'"{root_path}/{fil}?ts={ts}"' for fil in files])
         end_script = f"let paths = [{paths}]"
-        res += f"<script>{end_script}</script></body></html>"
+        res += f"<script>{end_script}</script></div></body></html>"
         return res
     else:
         print(os.path.dirname(path),os.path.basename(path))
@@ -181,20 +228,9 @@ if __name__ == '__main__':
     port = 5000
     for _ in range(100):
         try:
-            app.run(host='0.0.0.0', port=port)
+            # app.debug=True
+            app.run(host='0.0.0.0', port=port,threaded=True)
             break
         except OSError as e:
             if e.errno == 98:
                 port += 1
-
-import threading
-
-# def thread_function():
-    # while True:
-        # for event in inotify.read():
-            # print(event)
-            # for flag in flags.from_mask(event.mask):
-                # print('    ' + str(flag))
-
-# x = threading.Thread(target=thread_function)
-# x.start()
