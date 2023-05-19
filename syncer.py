@@ -7,6 +7,19 @@ import argparse
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
+# For increased speed, setup an ssh tunnel to the target server directly using SSH multiplexing
+# https://blog.scottlowe.org/2015/12/11/using-ssh-multiplexing/
+# this way rsync will not redo the ssh handshake every time
+# but just reuse an exising connection
+# add this to your ~/.ssh/config
+# Host *
+#  ControlMaster auto
+#  ControlPath ~/.ssh/cm-%r@%h:%p
+# then if you start a connection which is held open with with `ssh -vN user@host`
+# in another terminal if you `rsync file user@host:file`
+# you can see the the first connection is reused, and should
+# be much faster to connect
+
 config_file = '.sync.yml'
 
 class FileChangeHandler(FileSystemEventHandler):
@@ -23,6 +36,8 @@ class FileChangeHandler(FileSystemEventHandler):
 
     def on_modified(self, event):
         if not event.is_directory and not self.should_ignore(event.src_path):
+            print(event)
+            print(event.src_path)
             self.callback()
 
 def file_change_callback():
