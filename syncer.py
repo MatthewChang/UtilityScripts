@@ -49,11 +49,13 @@ def file_change_callback():
         config = yaml.safe_load(f)
     remote_server = config.get("remote_server")
     remote_folder = config.get("remote_folder")
-    subprocess.call(["rsync", "-avzu", "--compress", "--size-only", "--exclude-from", ".gitignore", ".", f"{remote_server}:{remote_folder}"])
+    extra_patterns = ['--exclude', '.git/*','--exclude', '.git/**/*']
+    subprocess.call(["rsync", "-avzu", "--compress", "--size-only", *extra_patterns,"--exclude-from", ".gitignore", ".", f"{remote_server}:{remote_folder}"])
 
     print("Waiting for changes...")
 
 def load_ignore_patterns():
+    # ignore_patterns = ['.git/**/*','.git/*']
     ignore_patterns = ['.git/**/*','.git/*']
     gitignore_file = os.path.join(os.getcwd(), '.gitignore')
     if os.path.isfile(gitignore_file):
