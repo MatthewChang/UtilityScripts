@@ -15,6 +15,7 @@ watch_flags = flags.CREATE | flags.DELETE | flags.MODIFY | flags.DELETE_SELF
 app = Flask(__name__)
 script = """ let selected = null; 
 let evtSource;
+let marked_inds = [];
 function select(ind,register=true){
     if (ind < 0) {
         ind = 0
@@ -22,7 +23,11 @@ function select(ind,register=true){
     if (ind >= paths.length) {
         ind = paths.length - 1
     }
-    $("#item"+selected).css('background','white')
+    if (marked_inds.includes(selected)) {
+        $("#item"+selected).css('background','green')
+    } else {
+        $("#item"+selected).css('background','white')
+    }
     $("#item"+ind).css('background','red')
     selected=ind
     // $("#display").attr('src',paths[ind])
@@ -63,6 +68,18 @@ function select(ind,register=true){
         }
     }
 }
+// add the selected file to the list of marked files
+function mark(ind){
+    $("#item"+ind).css('background','green')
+    marked_inds.push(ind)
+}
+
+// remove the selected file to the list of marked files
+function unmark(ind){
+    $("#item"+ind).css('background','white')
+    marked_inds = marked_inds.filter(function(value, index, arr){ return (value != ind)})
+}
+
 $(document).ready(function(){
     let hash = window.location.hash.substr(1)
     if (hash.length > 0) {
@@ -82,9 +99,15 @@ $(document).ready(function(){
         }
     });
 })
+// print an array with the file names of all marked files
+function print_marked(){
+    console.log(marked_inds.map(function(ind){return paths[ind]}))
+}
+
 document.onkeydown = function(e) {
     switch(e.which) {
         case 37: // left
+        unmark(selected)
         break;
 
         case 38: // up
@@ -92,6 +115,7 @@ document.onkeydown = function(e) {
         break;
 
         case 39: // right
+        mark(selected)
         break;
 
         case 40: // down
