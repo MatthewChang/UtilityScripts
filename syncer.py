@@ -4,6 +4,7 @@ import fnmatch
 import subprocess
 import yaml
 import argparse
+from functools import partial
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -43,19 +44,24 @@ class FileChangeHandler(FileSystemEventHandler):
             print(event.src_path)
             self.callback()
 
-def file_change_callback():
+def file_change_callback(config):
     print("Syncing")
-    with open(config_file, 'r') as f:
-        config = yaml.safe_load(f)
-    remote_server = config.get("remote_server")
-    remote_folder = config.get("remote_folder")
-    extra_patterns = ['--exclude', '.git/*','--exclude', '.git/**/*']
-    subprocess.call(["rsync", "-avzu", "--compress", "--size-only", *extra_patterns,"--exclude-from", ".gitignore", ".", f"{remote_server}:{remote_folder}"])
+    remote_server = config['remote_server'] 
+    remote_folder = config['remote_folder']
+    # extra_patterns = ['--exclude', '.git/*','--exclude', '.git/**/*']
+    # extra_patterns += ['--include="*/"', '--include="*.sh"' '--exclude="*"']
+    # subprocess.call(["rsync", "-avzu", "--compress", "--size-only", *extra_patterns,"--exclude-from", ".gitignore", ".", f"{remote_folder}"])
 
+    # extra_patterns = ['--exclude', '.git/*','--exclude', '.git/**/*']
+    # this order is required
+    # the -m flag stops empty directories from being created
+    extra_patterns = ['--include=*/', '--include=*.sh', '--include=*.py', '--exclude=*']
+    command = ["rsync", "-avzum", "--compress", "--size-only", *extra_patterns, ".", f"{remote_server}:{remote_folder}"]
+    print(" ".join(command))
+    subprocess.call(command)
     print("Waiting for changes...")
 
 def load_ignore_patterns():
-    # ignore_patterns = ['.git/**/*','.git/*']
     ignore_patterns = ['.git/**/*','.git/*']
     gitignore_file = os.path.join(os.getcwd(), '.gitignore')
     if os.path.isfile(gitignore_file):
@@ -66,8 +72,9 @@ def load_ignore_patterns():
                     ignore_patterns.append(line)
     return ignore_patterns
 
-def monitor_directory_changes(directory, ignore_patterns=None):
-    event_handler = FileChangeHandler(file_change_callback, ignore_patterns)
+def monitor_directory_changes(config,directory, ignore_patterns=None):
+    callback = partial(file_change_callback, config)
+    event_handler = FileChangeHandler(callback, ignore_patterns)
     observer = Observer()
     observer.schedule(event_handler, directory, recursive=True)
     observer.start()
@@ -81,11 +88,7 @@ def monitor_directory_changes(directory, ignore_patterns=None):
 
     observer.join()
 
-def sync_all_files(ignore_patterns=None):
-    with open(config_file, 'r') as f:
-        config = yaml.safe_load(f)
-    remote_server = config.get("remote_server")
-    remote_folder = config.get("remote_folder")
+def sync_all_files(config,ignore_patterns=None):
 
     # Pull down the .gitignore file from the remote server
     subprocess.call(["rsync", "-avz", f"{remote_server}:{remote_folder}/.gitignore", "."])
@@ -96,13 +99,24 @@ def sync_all_files(ignore_patterns=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Watch for file changes and perform sync")
     parser.add_argument("--sync-all", action="store_true", help="Perform a one-time sync of all files")
+    parser.add_argument('-s',"--remote-server", default=None, help="Remote server to sync to")
+    parser.add_argument('-f',"--remote-folder", default=None, help="Remote folder to sync to")
     args = parser.parse_args()
 
     current_directory = os.getcwd()
     ignore_patterns = load_ignore_patterns()
 
+    with open(config_file, 'r') as f:
+        config = yaml.safe_load(f)
+    remote_server = config.get("remote_server")
+    remote_folder = config.get("remote_folder")
+    if args.remote_server:
+        remote_server = args.remote_server
+    if args.remote_folder:
+        remote_folder = args.remote_folder
+    config = {'remote_server': remote_server, 'remote_folder': remote_folder}
     if args.sync_all:
-        sync_all_files(ignore_patterns)
+        sync_all_files(config,ignore_patterns)
     else:
-        monitor_directory_changes(current_directory, ignore_patterns)
+        monitor_directory_changes(config,current_directory, ignore_patterns)
 
