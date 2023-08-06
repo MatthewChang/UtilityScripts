@@ -149,8 +149,9 @@ def listen(path):
 def hello_world(subpath=''):
     path = subpath
     if 'listen' in request.args:
-        print('Listening on ',path)
-        return listen(path)
+        return "Disabled", 400
+        # print('Listening on ',path)
+        # return listen(path)
     print('path: ',path,os.path.isdir('./'+path))
     ts = time.time()
     if path is None or os.path.isdir('./'+path):
