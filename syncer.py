@@ -21,7 +21,6 @@ from watchdog.events import FileSystemEventHandler
 # you can see the the first connection is reused, and should
 # be much faster to connect
 
-config_file = '.sync.yml'
 
 class FileChangeHandler(FileSystemEventHandler):
     def __init__(self, callback, ignore_patterns=None):
@@ -46,20 +45,35 @@ class FileChangeHandler(FileSystemEventHandler):
 
 def file_change_callback(config):
     print("Syncing")
-    remote_server = config['remote_server'] 
-    remote_folder = config['remote_folder']
-    # extra_patterns = ['--exclude', '.git/*','--exclude', '.git/**/*']
-    # extra_patterns += ['--include="*/"', '--include="*.sh"' '--exclude="*"']
-    # subprocess.call(["rsync", "-avzu", "--compress", "--size-only", *extra_patterns,"--exclude-from", ".gitignore", ".", f"{remote_folder}"])
-
-    # extra_patterns = ['--exclude', '.git/*','--exclude', '.git/**/*']
-    # this order is required
-    # the -m flag stops empty directories from being created
-    extra_patterns = ['--include=*/', '--include=*.sh', '--include=*.py', '--exclude=*']
-    command = ["rsync", "-avzum", "--compress", "--size-only", *extra_patterns, ".", f"{remote_server}:{remote_folder}"]
+    command = build_command(config)
     print(" ".join(command))
     subprocess.call(command)
     print("Waiting for changes...")
+
+def build_command(config,down=False):
+    remote_server = config['remote_server'] 
+    remote_folder = config['remote_folder']
+    include_statements = [f'--include={inc}' for inc in config['include']]
+
+    # exclude from gitignore
+    # subprocess.call(["rsync", "-avzu", "--compress", "--size-only", *extra_patterns,"--exclude-from", ".gitignore", ".", f"{remote_folder}"])
+
+    # this order is required
+    # include all directories and any file/glob specified in the config
+    extra_patterns = ['--include=*/', *include_statements, '--exclude=*']
+    # the -m flag stops empty directories from being created
+    flags = '-avzum'
+    # dry run only
+    if config['dry']:
+        flags += 'n'
+    # command = ["rsync",flags, "--compress", "--size-only", *extra_patterns]
+    command = ["rsync",flags, "--compress", *extra_patterns]
+
+    if down:
+        command += [f"{remote_server}:{remote_folder}/",'.']
+    else:
+        command += [".", f"{remote_server}:{remote_folder}"]
+    return command
 
 def load_ignore_patterns():
     ignore_patterns = ['.git/**/*','.git/*']
@@ -89,24 +103,27 @@ def monitor_directory_changes(config,directory, ignore_patterns=None):
     observer.join()
 
 def sync_all_files(config,ignore_patterns=None):
-
     # Pull down the .gitignore file from the remote server
     subprocess.call(["rsync", "-avz", f"{remote_server}:{remote_folder}/.gitignore", "."])
 
     # Perform the sync, excluding files based on the pulled .gitignore
-    subprocess.call(["rsync", "-avzu", "--exclude-from", ".gitignore", f"{remote_server}:{remote_folder}/", "."])
+    command = build_command(config,True)
+    print(" ".join(command))
+    subprocess.call(command)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Watch for file changes and perform sync")
+    parser.add_argument('-c',"--config", default='.sync.yml', help="config file")
     parser.add_argument("--sync-all", action="store_true", help="Perform a one-time sync of all files")
     parser.add_argument('-s',"--remote-server", default=None, help="Remote server to sync to")
     parser.add_argument('-f',"--remote-folder", default=None, help="Remote folder to sync to")
+    parser.add_argument('-n',"--dry-run", action="store_true")
     args = parser.parse_args()
 
     current_directory = os.getcwd()
     ignore_patterns = load_ignore_patterns()
 
-    with open(config_file, 'r') as f:
+    with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
     remote_server = config.get("remote_server")
     remote_folder = config.get("remote_folder")
@@ -114,7 +131,7 @@ if __name__ == "__main__":
         remote_server = args.remote_server
     if args.remote_folder:
         remote_folder = args.remote_folder
-    config = {'remote_server': remote_server, 'remote_folder': remote_folder}
+    config = {'remote_server': remote_server, 'remote_folder': remote_folder,'dry': args.dry_run,'include': config.get('include',[])}
     if args.sync_all:
         sync_all_files(config,ignore_patterns)
     else:
