@@ -16,7 +16,7 @@ num_tokens = 5
 python ~/UtilityScripts/transform_dirs.py  "20bn-something-something-v2-#1.zip" "something/20bn-something-something-v2-#1.zip"
 python ~/UtilityScripts/transform_dirs.py  "fil#1.txt" 'nested#1/fil.txt'
 
-# glob match multiple directories
+# glob match multiple directories with double hash
 python ~/UtilityScripts/transform_dirs.py  "##1/nested#1/fil.txt" 'out/fil#1.txt'
 
 # disambiguate files with file number
@@ -72,7 +72,7 @@ if input() == 'y':
             Path(fil).rename(out)
         else:
             Path(out).parent.mkdir(parents=True,exist_ok=True)
-            shutil.copy(fil,out)
+            shutil.copytree(fil,out)
 else:
     print("Aborting")
 
