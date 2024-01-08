@@ -1,3 +1,4 @@
+#! python
 from glob import glob
 import shutil
 from pathlib import Path
@@ -5,7 +6,30 @@ import re
 from posixpath import normpath
 import re
 import argparse
-parser = argparse.ArgumentParser(description='')
+description = '''
+This utility is used to transform directory paths or filenames by replacing certain patterns. It takes two positional arguments and one optional argument.
+
+Positional arguments:
+p1: The pattern in the existing file or directory paths. Use '#n' to represent a variable part of the path that will be replaced. Use '##n' to glob match multiple directories.
+p2: The pattern for the new file or directory paths. Use '#n' to represent the part of the path that will be replaced by '#n' in p1.
+'n' can be any singe digit integer
+p2 can include formatting strings for integers (e.g. '%03d') which will be replaced by the index of the file or directory in the list of matches.
+
+
+Optional arguments:
+--move: If this argument is provided, the files or directories matching p1 will be moved to the new paths specified by p2. If this argument is not provided, the script will try to copy the files instead.
+
+Examples:
+1. To move a file to a nested directory:
+python transform_dirs.py  "fil#1.txt" 'nested#1/fil.txt'
+
+3. To move files from multiple directories to a single directory:
+python transform_dirs.py  "##1/nested#1/fil.txt" 'out/fil#1.txt'
+
+4. To move files from multiple directories to a single directory and rename them with a number:
+python transform_dirs.py  "##1/nested#1/fil.txt" 'out/fil_%03d.txt'
+'''
+parser = argparse.ArgumentParser(description=description,formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('p1')
 parser.add_argument('p2')
 parser.add_argument('--move',action='store_true')
