@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Set the -e option to terminate on failure
+set -e
+
 # Check if the correct number of arguments are provided
 if [ $# -ne 2 ]; then
     echo "Usage: $0 branch_A branch_B"
@@ -16,7 +19,7 @@ git fetch
 # Check if branch B is merged into branch A
 if git branch --merged "$branch_A" | grep -q "$branch_B"; then
     echo "Branch $branch_B is merged into $branch_A"
-    patch_file="/tmp/$branch_B-to-$branch_A.patch"
+    patch_file="temp.patch"
     # Create a patch file of the differences between the two branches
     git diff "$branch_B" "$branch_A" > "$patch_file"
 
