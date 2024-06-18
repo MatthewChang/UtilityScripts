@@ -1,0 +1,32 @@
+#!/bin/bash
+
+if [ -z "$SLURM_LOG_DIR" ]; then
+    echo "Warning: SLURM_LOG_DIR is not set."
+fi
+
+# Check if an argument was provided
+if [ $# -eq 0 ]; then
+    echo "No arguments provided. Please provide a pattern."
+    exit 1
+fi
+
+# Define the glob pattern from the first command-line argument
+pattern="$SLURM_LOG_DIR/*_$1.log"
+
+# Initialize a variable to hold the last file name
+last_file=""
+
+# Loop over the files matching the pattern
+for file in $(ls $pattern 2> /dev/null | sort)
+do
+  # Update the last file name
+  last_file=$file
+done
+
+# Print the last file name
+if [ -n "$last_file" ]; then
+  echo "The last file by alphabetical order is: $last_file"
+  tail -f $last_file
+else
+  echo "No files matching the pattern were found."
+fi
