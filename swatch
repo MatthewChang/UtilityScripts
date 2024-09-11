@@ -1,8 +1,13 @@
 #!/bin/bash
-
-if [ -z "$SLURM_LOG_DIR" ]; then
-    echo "Warning: SLURM_LOG_DIR is not set."
-fi
+# Parse command line options
+wait_mode=false
+while getopts "w" opt; do
+  case $opt in
+    w) wait_mode=true ;;
+    *) ;;
+  esac
+done
+shift $((OPTIND-1))
 
 # Check if an argument was provided
 if [ $# -eq 0 ]; then
@@ -11,22 +16,39 @@ if [ $# -eq 0 ]; then
 fi
 
 # Define the glob pattern from the first command-line argument
-pattern="$SLURM_LOG_DIR/*_$1.log"
+pattern="$SLURM_LOG_DIR/*$1*.log"
 
-# Initialize a variable to hold the last file name
+# Function to find the last file
+find_last_file() {
+    ls $pattern 2> /dev/null | sort | tail -n 1
+}
+
+# Initialize variables
 last_file=""
+start_time=$(date +%s)
+timeout=600  # 10 minutes in seconds
 
-# Loop over the files matching the pattern
-for file in $(ls $pattern 2> /dev/null | sort)
-do
-  # Update the last file name
-  last_file=$file
+# Main loop
+while true; do
+    last_file=$(find_last_file)
+    
+    if [ -n "$last_file" ]; then
+        echo "The last file by alphabetical order is: $last_file"
+        tail -f "$last_file"
+        break
+    elif [ "$wait_mode" = true ]; then
+        current_time=$(date +%s)
+        elapsed=$((current_time - start_time))
+        
+        if [ $elapsed -ge $timeout ]; then
+            echo "Timeout: No matching file found after 10 minutes."
+            exit 1
+        fi
+        
+        echo "Waiting for file"
+        sleep 5  # Wait for 5 seconds before checking again
+    else
+        echo "No files matching the pattern were found."
+        exit 1
+    fi
 done
-
-# Print the last file name
-if [ -n "$last_file" ]; then
-  echo "The last file by alphabetical order is: $last_file"
-  tail -f $last_file
-else
-  echo "No files matching the pattern were found."
-fi
