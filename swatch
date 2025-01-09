@@ -1,13 +1,13 @@
 #!/bin/bash
 # Parse command line options
-wait_mode=false
-while getopts "w" opt; do
-  case $opt in
-    w) wait_mode=true ;;
-    *) ;;
-  esac
-done
-shift $((OPTIND-1))
+wait_mode=true
+# while getopts "w" opt; do
+#   case $opt in
+#     w) wait_mode=true ;;
+#     *) ;;
+#   esac
+# done
+# shift $((OPTIND-1))
 
 # Check if an argument was provided
 if [ $# -eq 0 ]; then

@@ -32,7 +32,11 @@ python transform_dirs.py  "##1/nested#1/fil.txt" 'out/fil_%03d.txt'
 parser = argparse.ArgumentParser(description=description,formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('p1')
 parser.add_argument('p2')
-parser.add_argument('--move',action='store_true')
+group = parser.add_mutually_exclusive_group()
+group.add_argument('--move', action='store_true')
+group.add_argument('--delete', action='store_true')
+args = parser.parse_args()
+
 args = parser.parse_args()
 num_tokens = 5
 '''
@@ -87,16 +91,28 @@ for fn,fil in enumerate(files):
 
 for fil,out in zip(files,outs):
     print(fil,'->',out)
-print("Copy files here? (y/n)")
+if args.delete:
+    print("Delete these files? (y/n)")
+elif args.move:
+    print("Move files here? (y/n)")
+else:
+    print("Copy files here? (y/n)")
 if input() == 'y':
     for fil,out in zip(files,outs):
-        print(fil,'->',out)
-        if args.move:
-            Path(out).parent.mkdir(parents=True,exist_ok=True)
-            Path(fil).rename(out)
+        if args.delete:
+            print(f"Deleting {fil}")
+            if Path(fil).is_dir():
+                shutil.rmtree(fil)
+            else:
+                Path(fil).unlink()
         else:
-            Path(out).parent.mkdir(parents=True,exist_ok=True)
-            shutil.copytree(fil,out)
+            print(fil,'->',out)
+            if args.move:
+                Path(out).parent.mkdir(parents=True,exist_ok=True)
+                Path(fil).rename(out)
+            else:
+                Path(out).parent.mkdir(parents=True,exist_ok=True)
+                shutil.copytree(fil,out)
 else:
     print("Aborting")
 
