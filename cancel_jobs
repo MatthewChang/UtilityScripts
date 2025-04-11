@@ -1,0 +1,11 @@
+#!/bin/bash
+# Usage: ./cancel_jobs.sh <job_name_pattern>
+# Example: ./cancel_jobs.sh vlm_partial_obs_train_jacob_repro_2
+
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <job_name_pattern>"
+    exit 1
+fi
+
+JOB_PATTERN="$1"
+squeue --format="%.18i %.9P %.50j %.2t %.10M %.6D %R" -u matthewchang | grep "$JOB_PATTERN" | awk '{print $1}' | xargs scancel
