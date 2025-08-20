@@ -1,19 +1,46 @@
-if [ $# -eq 0 ]
-  then
-    echo "Folder required"
-    exit
-fi
-while true; do
-    read -p "Do you wish remove all files in $1 ?" yn
-    case $yn in
-        [Yy]* ) break;;
-        [Nn]* ) exit;;
-        * ) echo "Please answer yes or no.";;
+#!/bin/bash
+# Parse arguments
+FORCE=false
+FOLDER=""
+
+while [ $# -gt 0 ]; do
+    case $1 in
+        -f|--force)
+            FORCE=true
+            shift
+            ;;
+        *)
+            if [ -z "$FOLDER" ]; then
+                FOLDER="$1"
+            else
+                echo "Error: Too many arguments"
+                exit 1
+            fi
+            shift
+            ;;
     esac
 done
-for folder in $(ls $1)
+
+if [ -z "$FOLDER" ]; then
+    echo "Folder required"
+    echo "Usage: $0 [-f] <folder>"
+    exit 1
+fi
+
+# Only prompt for confirmation if -f flag is not used
+if [ "$FORCE" = false ]; then
+    while true; do
+        read -p "Do you wish remove all files in $FOLDER ?" yn
+        case $yn in
+            [Yy]* ) break;;
+            [Nn]* ) exit;;
+            * ) echo "Please answer yes or no.";;
+        esac
+    done
+fi
+for folder in $(ls $FOLDER)
 do
-  echo removing $1/$folder
-  rm -rf $1/$folder
+  echo removing $FOLDER/$folder
+  rm -rf $FOLDER/$folder
 done
-rm -r $1
+rm -r $FOLDER
