@@ -1,0 +1,8 @@
+#!/bin/bash
+# Check if an argument was provided
+if [ $# -eq 0 ]; then
+    echo "No arguments provided. Please provide a pattern."
+    exit 1
+fi
+
+tail -f log_submitit/$1*log.out log_submitit/$1*log.err
