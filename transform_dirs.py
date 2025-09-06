@@ -98,11 +98,11 @@ if not args.delete:
 for fil,out in zip(files,outs):
     print(fil,'->',out)
 if args.delete:
-    print("Delete these files? (y/n)")
+    print(f"Delete {len(files)} files? (y/n)")
 elif args.move:
-    print("Move files here? (y/n)")
+    print(f"Move {len(files)} files here? (y/n)")
 else:
-    print("Copy files here? (y/n)")
+    print(f"Copy {len(files)} files here? (y/n)")
 if input() == 'y':
     if args.delete:
         for fil in files:
@@ -119,7 +119,10 @@ if input() == 'y':
                 Path(fil).rename(out)
             else:
                 Path(out).parent.mkdir(parents=True,exist_ok=True)
-                shutil.copytree(fil,out)
+                if Path(fil).is_dir():
+                    shutil.copytree(fil,out)
+                else:
+                    shutil.copy(fil,out)
 else:
     print("Aborting")
 
