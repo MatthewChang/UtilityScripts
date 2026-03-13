@@ -24,11 +24,11 @@ function select(ind,register=true){
         ind = paths.length - 1
     }
     if (marked_inds.includes(selected)) {
-        $("#item"+selected).css('background','green')
+        $("#item"+selected).css('background','#03dac6')
     } else {
-        $("#item"+selected).css('background','white')
+        $("#item"+selected).css('background','#1e1e2e')
     }
-    $("#item"+ind).css('background','red')
+    $("#item"+ind).css('background','#2196f3')
     selected=ind
     // $("#display").attr('src',paths[ind])
     // detect mp4
@@ -70,13 +70,13 @@ function select(ind,register=true){
 }
 // add the selected file to the list of marked files
 function mark(ind){
-    $("#item"+ind).css('background','green')
+    $("#item"+ind).css('background','#03dac6')
     marked_inds.push(ind)
 }
 
 // remove the selected file to the list of marked files
 function unmark(ind){
-    $("#item"+ind).css('background','white')
+    $("#item"+ind).css('background','#1e1e2e')
     marked_inds = marked_inds.filter(function(value, index, arr){ return (value != ind)})
 }
 
@@ -186,11 +186,22 @@ def hello_world(subpath=''):
         # self.send_header("Content-type", "text/html")
         # self.end_headers()
         style = '''
-                body {margin: 0}
-                #page { display: flex; flex-direction: column; height: 100vh}
-                #main { display: flex; overflow-y: auto;}
-                #list {display: flex; overflow-y: scroll; flex-shrink: 0; flex-direction: column}
-                h3 { flex-grow: 0;}
+                * { box-sizing: border-box; }
+                body { margin: 0; background: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+                #page { display: flex; flex-direction: column; height: 100vh; }
+                #main { display: flex; overflow-y: auto; flex: 1; }
+                #list { display: flex; overflow-y: scroll; flex-shrink: 0; flex-direction: column; background: #1e1e2e; min-width: 250px; }
+                #list .item { border-bottom: 1px solid #2a2a3e; transition: background 0.15s ease; cursor: pointer; }
+                #list .item:hover { background: #2a2a3e !important; }
+                h3 { flex-grow: 0; padding: 12px 16px; margin: 0; background: #16162a; border-bottom: 1px solid #2a2a3e; font-size: 14px; font-weight: 500; }
+                a { color: #64b5f6; text-decoration: none; }
+                a:hover { text-decoration: underline; color: #90caf9; }
+                #display_inner { padding: 16px; }
+                #display_inner img, #display_inner video { border-radius: 4px; }
+                ::-webkit-scrollbar { width: 8px; }
+                ::-webkit-scrollbar-track { background: #1e1e2e; }
+                ::-webkit-scrollbar-thumb { background: #3a3a5e; border-radius: 4px; }
+                ::-webkit-scrollbar-thumb:hover { background: #4a4a6e; }
         '''
         res = f'''<html>
         <head>
@@ -235,10 +246,10 @@ def hello_world(subpath=''):
         for i,fil in enumerate(files):
             print(root_path,fil)
             onclick =f"onclick=\"select({i})\""
-            res += f'<p class="item" {onclick} style="background: white; margin: 0 0 0 0; padding: 5 25 5 10" id="item{i}"><a href="{root_path}/{fil}">{fil}</a></p>'
+            res += f'<p class="item" {onclick} style="background: #1e1e2e; margin: 0; padding: 8px 16px" id="item{i}"><a href="{root_path}/{fil}">{fil}</a></p>'
         res += '</div>'
         # res += f'<div><img id="display" style="position: fixed" src=""/></div>'
-        res += f'<div><div id="display" style="position: fixed,padding: 0.5em"/><div id="display_inner"></div></div>'
+        res += f'<div><div id="display" style="position: fixed; padding: 0.5em"><div id="display_inner"></div></div></div>'
         res += '</div>'
         paths = ','.join([f'"{root_path}/{fil}?ts={ts}"' for fil in files])
         end_script = f"let paths = [{paths}]"
