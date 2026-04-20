@@ -1,4 +1,4 @@
-#! python
+#! python3
 from glob import glob
 import shutil
 from pathlib import Path

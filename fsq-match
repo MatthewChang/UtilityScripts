@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""
+Match filesystem paths using patterns with #n placeholders and enqueue fsq jobs
+for each match, substituting the matched segments into a command template.
+
+Examples:
+  fsq-match '/data/batch3/#1/scene.mcap' --root /queues/general --job-type general --retries 3 \
+    -- 'cd /repos/da3; pixi run infer-mcap /data/batch3/#1/scene.mcap --output /data/batch3_da3/#1/scene.mcap'
+
+  fsq-match '/data/##1/#2/scene.mcap' --dry-run --root /queues/general --job-type general \
+    -- 'echo processing #2'
+"""
+import argparse
+import re
+import subprocess
+import sys
+from glob import glob
+from posixpath import normpath
+
+NUM_TOKENS = 10
+
+
+def to_glob(pat):
+    for n in range(NUM_TOKENS):
+        pat = pat.replace(f'##{n}', '**')
+    for n in range(NUM_TOKENS):
+        pat = pat.replace(f'#{n}', '*')
+    return pat
+
+
+def to_regex(pat):
+    for n in range(NUM_TOKENS):
+        pat = pat.replace(f'##{n}', f'(?P<d{n}>.*?)')
+    for n in range(NUM_TOKENS):
+        pat = pat.replace(f'#{n}', f'(?P<n{n}>[^/]*)')
+    return pat
+
+
+def substitute(template, match_dict):
+    out = template
+    for k, v in match_dict.items():
+        if k[0] == 'n':
+            out = out.replace(f'#{k[1:]}', v)
+        if k[0] == 'd':
+            out = out.replace(f'##{k[1:]}', v)
+    return out
+
+
+def main():
+    # Manually split on '--' to separate fsq-match args from the command template
+    argv = sys.argv[1:]
+    if '--' in argv:
+        split_idx = argv.index('--')
+        our_args = argv[:split_idx]
+        cmd_parts = argv[split_idx + 1:]
+    else:
+        our_args = argv
+        cmd_parts = []
+
+    parser = argparse.ArgumentParser(
+        description='Match filesystem paths and enqueue fsq jobs with substituted commands.',
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    parser.add_argument('pattern', help='Filesystem pattern with #n (single dir) and ##n (multi-dir) placeholders')
+    parser.add_argument('--root', required=True, help='fsq queue root directory')
+    parser.add_argument('--job-type', required=True, help='fsq job type')
+    parser.add_argument('--retries', type=int, default=3, help='Number of retries (default: 3)')
+    parser.add_argument('--dry-run', action='store_true', help='Print commands without enqueuing')
+
+    args = parser.parse_args(our_args)
+
+    if not cmd_parts:
+        parser.error("No command template provided after --")
+    cmd_template = ' '.join(cmd_parts)
+
+    pattern = normpath(args.pattern)
+    glob_pat = to_glob(pattern)
+    regex_pat = to_regex(pattern)
+
+    files = sorted(glob(glob_pat, recursive=True))
+    if not files:
+        print(f"No matches for pattern: {glob_pat}", file=sys.stderr)
+        sys.exit(1)
+
+    commands = []
+    for fil in files:
+        match = re.match(regex_pat, fil)
+        if match is None:
+            continue
+        cmd = substitute(cmd_template, match.groupdict())
+        commands.append((fil, cmd))
+
+    if not commands:
+        print("No matches found.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"{'[DRY RUN] ' if args.dry_run else ''}Matched {len(commands)} path(s):\n")
+    for fil, cmd in commands:
+        fsq_cmd = [
+            'fsq', 'enqueue',
+            '--root', args.root,
+            '--job-type', args.job_type,
+            '--retries', str(args.retries),
+            '--', cmd,
+        ]
+        print(f"  {fil}")
+        print(f"    -> fsq enqueue --root {args.root} --job-type {args.job_type} --retries {args.retries} -- \"{cmd}\"")
+        print()
+
+    if args.dry_run:
+        print(f"[DRY RUN] Would enqueue {len(commands)} job(s). Re-run without --dry-run to execute.")
+        return
+
+    confirm = input(f"Enqueue {len(commands)} job(s)? (y/n) ")
+    if confirm.strip().lower() != 'y':
+        print("Aborted.")
+        sys.exit(0)
+
+    for fil, cmd in commands:
+        fsq_cmd = [
+            'fsq', 'enqueue',
+            '--root', args.root,
+            '--job-type', args.job_type,
+            '--retries', str(args.retries),
+            '--', cmd,
+        ]
+        print(f"Enqueuing: {cmd}")
+        subprocess.run(fsq_cmd, check=True)
+
+    print(f"\nDone. Enqueued {len(commands)} job(s).")
+
+
+if __name__ == '__main__':
+    main()
