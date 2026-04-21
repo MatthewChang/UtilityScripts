@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+"""
+Match filesystem paths using patterns with @n placeholders and execute a command
+for each match, substituting the matched segments into a command template.
+
+Placeholders:
+  @0..@9   Match a single directory component (no slashes)
+  @@0..@@9 Match multiple directory levels (can include slashes)
+  @f       Expands to the full matched path (command template only)
+  @i       Expands to the 0-based match index (command template only)
+
+Examples:
+  pat-exec '/data/batch3/@1/scene.mcap' --dry-run \\
+    -- infer-mcap /data/batch3/@1/scene.mcap --output /data/out/@1/scene.mcap
+
+  pat-exec '/data/@@1/@2.png' --shell \\
+    -- 'convert /data/@@1/@2.png -resize 50% /out/@@1/@2_small.png'
+
+  pat-exec '/logs/@1/@2.log' --parallel 4 -- gzip '@f'
+"""
+import argparse
+import re
+import shlex
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from glob import glob
+from posixpath import normpath
+
+NUM_TOKENS = 10
+_SENTINEL_DOUBLE = '\x00DD{}\x00'
+_SENTINEL_SINGLE = '\x00SS{}\x00'
+
+
+def to_glob(pat):
+    for n in range(NUM_TOKENS):
+        pat = pat.replace(f'@@{n}', '**')
+    for n in range(NUM_TOKENS):
+        pat = pat.replace(f'@{n}', '*')
+    return pat
+
+
+def to_regex(pat):
+    for n in range(NUM_TOKENS):
+        pat = pat.replace(f'@@{n}', _SENTINEL_DOUBLE.format(n))
+    for n in range(NUM_TOKENS):
+        pat = pat.replace(f'@{n}', _SENTINEL_SINGLE.format(n))
+    pat = re.escape(pat)
+    for n in range(NUM_TOKENS):
+        pat = pat.replace(re.escape(_SENTINEL_DOUBLE.format(n)), f'(?P<d{n}>.*?)')
+    for n in range(NUM_TOKENS):
+        pat = pat.replace(re.escape(_SENTINEL_SINGLE.format(n)), f'(?P<n{n}>[^/]*)')
+    return pat
+
+
+def substitute(template, match_dict, full_path, index, shell_mode=False):
+    out = template
+    q = shlex.quote if shell_mode else lambda x: x
+    for k, v in match_dict.items():
+        if k[0] == 'n':
+            out = out.replace(f'@{k[1:]}', q(v))
+        elif k[0] == 'd':
+            out = out.replace(f'@@{k[1:]}', q(v))
+    out = out.replace('@f', q(full_path))
+    out = out.replace('@i', str(index))
+    return out
+
+
+def find_matches(pattern):
+    pattern = normpath(pattern)
+    glob_pat = to_glob(pattern)
+    regex_pat = to_regex(pattern)
+
+    files = sorted(glob(glob_pat, recursive=True))
+    if not files:
+        print(f"No matches for glob: {glob_pat}", file=sys.stderr)
+        sys.exit(1)
+
+    matches = []
+    for f in files:
+        m = re.match(regex_pat, f)
+        if m:
+            matches.append((f, m.groupdict()))
+
+    if not matches:
+        print("Glob matched files but regex matched none.", file=sys.stderr)
+        sys.exit(1)
+
+    return matches
+
+
+def run_command(path, cmd, use_shell):
+    try:
+        result = subprocess.run(cmd, shell=use_shell)
+        return path, result.returncode
+    except Exception as e:
+        print(f"Error launching command for {path}: {e}", file=sys.stderr)
+        return path, -1
+
+
+def main():
+    argv = sys.argv[1:]
+    if '--' in argv:
+        split_idx = argv.index('--')
+        our_args = argv[:split_idx]
+        cmd_parts = argv[split_idx + 1:]
+    else:
+        our_args = argv
+        cmd_parts = []
+
+    parser = argparse.ArgumentParser(
+        description='Match filesystem paths with @n placeholders and execute commands.',
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument('pattern', help='Filesystem pattern with @n (single dir) and @@n (multi-dir) placeholders')
+    parser.add_argument('--dry-run', action='store_true', help='Preview commands without executing')
+    parser.add_argument('--parallel', type=int, default=1, metavar='N', help='Run up to N commands concurrently (default: 1)')
+    parser.add_argument('--shell', action='store_true', help='Run commands through sh -c (values auto-quoted)')
+    parser.add_argument('--on-error', choices=['stop', 'continue'], default='continue', help='Behavior on failure (default: continue)')
+    parser.add_argument('--no-confirm', action='store_true', help='Skip confirmation prompt')
+
+    args = parser.parse_args(our_args)
+
+    if not cmd_parts:
+        parser.error("No command template provided after --")
+    cmd_template = ' '.join(cmd_parts)
+
+    matches = find_matches(args.pattern)
+
+    commands = []
+    for i, (path, match_dict) in enumerate(matches):
+        cmd = substitute(cmd_template, match_dict, path, i, shell_mode=args.shell)
+        if args.shell:
+            commands.append((path, cmd))
+        else:
+            try:
+                commands.append((path, shlex.split(cmd)))
+            except ValueError as e:
+                print(f"Failed to parse command for {path}: {e}", file=sys.stderr)
+                print("Try using --shell mode.", file=sys.stderr)
+                sys.exit(1)
+
+    label = '[DRY RUN] ' if args.dry_run else ''
+    print(f"{label}Matched {len(commands)} path(s):\n")
+    for i, (path, cmd) in enumerate(commands):
+        cmd_str = cmd if isinstance(cmd, str) else ' '.join(cmd)
+        print(f"  [{i + 1}] {path}")
+        print(f"      -> {cmd_str}")
+    print()
+
+    if args.dry_run:
+        print(f"[DRY RUN] Would execute {len(commands)} command(s).")
+        return
+
+    if not args.no_confirm:
+        confirm = input(f"Execute {len(commands)} command(s)? [y/N] ")
+        if confirm.strip().lower() != 'y':
+            print("Aborted.")
+            sys.exit(0)
+
+    succeeded = 0
+    failed = []
+    total = len(commands)
+
+    if args.parallel > 1:
+        with ThreadPoolExecutor(max_workers=args.parallel) as pool:
+            futures = {
+                pool.submit(run_command, path, cmd, args.shell): (i, path)
+                for i, (path, cmd) in enumerate(commands)
+            }
+            try:
+                for future in as_completed(futures):
+                    idx, path = futures[future]
+                    path, rc = future.result()
+                    if rc == 0:
+                        succeeded += 1
+                        print(f"  [{succeeded + len(failed)}/{total}]  OK  {path}")
+                    else:
+                        failed.append((path, rc))
+                        print(f"  [{succeeded + len(failed)}/{total}] FAIL {path} (exit {rc})")
+                        if args.on_error == 'stop':
+                            pool.shutdown(wait=False, cancel_futures=True)
+                            break
+            except KeyboardInterrupt:
+                pool.shutdown(wait=False, cancel_futures=True)
+                print(f"\nInterrupted. {succeeded} succeeded, {len(failed)} failed before interrupt.")
+                sys.exit(130)
+    else:
+        for i, (path, cmd) in enumerate(commands):
+            try:
+                path, rc = run_command(path, cmd, args.shell)
+                if rc == 0:
+                    succeeded += 1
+                    print(f"  [{i + 1}/{total}]  OK  {path}")
+                else:
+                    failed.append((path, rc))
+                    print(f"  [{i + 1}/{total}] FAIL {path} (exit {rc})")
+                    if args.on_error == 'stop':
+                        break
+            except KeyboardInterrupt:
+                print(f"\nInterrupted. {succeeded} succeeded, {len(failed)} failed before interrupt.")
+                sys.exit(130)
+
+    print(f"\nDone. {succeeded} succeeded, {len(failed)} failed.")
+    if failed:
+        print("Failed:")
+        for path, rc in failed:
+            print(f"  {path} (exit {rc})")
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

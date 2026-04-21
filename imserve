@@ -6,16 +6,10 @@
 # audio codecs), you can open it directly in mpv which supports all codecs:
 #   mpv --keep-open http://localhost:8080/path/to/video.mp4
 import os
-from flask import Flask, send_from_directory, copy_current_request_context
-# from watchdog.observers import Observer 
-# from watchdog.observers.polling import PollingObserver
-# from watchdog.events import FileSystemEventHandler
-from queue import Queue
+from flask import Flask, send_from_directory
 import time
 from pathlib import Path
 import subprocess
-from inotify_simple import INotify, flags
-watch_flags = flags.CREATE | flags.DELETE | flags.MODIFY | flags.DELETE_SELF
 
 
 app = Flask(__name__)
@@ -28,10 +22,9 @@ def add_headers(response):
     response.headers['Access-Control-Allow-Headers'] = 'Range'
     response.headers['Access-Control-Expose-Headers'] = 'Content-Length, Content-Range, Accept-Ranges'
     return response
-script = """ let selected = null; 
-let evtSource;
+script = """ let selected = null;
 let marked_inds = [];
-function select(ind,register=true){
+function select(ind){
     if (ind < 0) {
         ind = 0
     }
@@ -69,18 +62,6 @@ function select(ind,register=true){
        $(window).scrollTop(elementTop)
     } else if (elementBottom > pageBottom) {
        $(window).scrollTop(elementBottom-window.innerHeight)
-    }
-
-    if (register) {
-        if (evtSource) {
-            evtSource.close()
-        }
-        let event_url = new URL("http://"+location.host+paths[ind])
-        event_url.searchParams.append('listen', 1);
-        evtSource = new EventSource(event_url.href);
-        evtSource.onmessage = function(event) { 
-            select(ind,false)
-        }
     }
 }
 // add the selected file to the list of marked files
@@ -143,54 +124,12 @@ document.onkeydown = function(e) {
 """
 
 image_extensions = ['png','jpg','jpeg','gif']
-from flask import request, Response
-import time
-# import pyinotify
-
-# wm = pyinotify.WatchManager()  # Watch Manager
-# class EventHandler(pyinotify.ProcessEvent):
-    # def __init__(self):
-        # super(EventHandler, self).__init__()
-        # self.queue = Queue()
-    # def process_IN_MODIFY(self, event):
-        # print("MODIFY:", event.pathname)
-        # self.queue.put(event.pathname)
-
-def listen(path):
-    def stream():
-        inotify = INotify()
-        # handler = EventHandler()
-        dirPath = os.path.dirname(path)
-        basePath = os.path.basename(path)
-        print(dirPath)
-        wd = inotify.add_watch('./'+dirPath, flags.MODIFY)
-        try:
-            while True:
-                # add read delay because things like writing pngs will do
-                # 20 quick writes in succession and we want to trigger after
-                # they're all done. If you don't do this you'll read only
-                # the top few lines of the image, or full the server with 20 requests
-                for event in inotify.read(read_delay=500):
-                    for flag in flags.from_mask(event.mask):
-                        if event.name == basePath:
-                            print(f"Updating {basePath}")
-                            print(event)
-                            # print(wd)
-                            yield ('data: {"abc": %s}\n\n' % (event.name))
-        finally:
-            print('closed:', path)
-            inotify.rm_watch(wd)
-            del inotify
-    return Response(stream(), mimetype='text/event-stream')
+from flask import request
 
 @app.route('/')
 @app.route("/<path:subpath>")
 def hello_world(subpath=''):
     path = subpath
-    if 'listen' in request.args:
-        return "Disabled", 400
-        # print('Listening on ',path)
-        # return listen(path)
     print('path: ',path,os.path.isdir('./'+path))
     ts = time.time()
     if path is None or os.path.isdir('./'+path):
